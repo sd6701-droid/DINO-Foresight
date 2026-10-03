@@ -20,7 +20,9 @@
 #   echo '{"username": "YOUR_EMAIL", "password": "YOUR_PASSWORD"}' > ~/.local/share/cityscapesscripts/credentials.json
 #   chmod 600 ~/.local/share/cityscapesscripts/credentials.json
 # Then:  mkdir -p /scratch/sd6701/DINO-Foresight/logs/cityscapes_download
-#        sbatch scripts/download_cityscapes.sbatch
+#        sbatch scripts/download_cityscapes.sbatch                 # cpu_short (header default)
+#        sbatch --partition=cs scripts/download_cityscapes.sbatch  # second copy on cs
+# Whichever copy starts first cancels the other pending copy automatically.
 #
 # Every stage is resumable, so cancelling and resubmitting is always safe:
 #   download  - csDownload -r continues a partial zip via HTTP Range requests and
@@ -51,6 +53,26 @@ fi
 
 DATASETS_ROOT=${DATASETS_ROOT:-~/datasets}
 DEST=${CITYSCAPES_DEST:-$DATASETS_ROOT/cityscapes}
+mkdir -p "$DEST"
+
+# ---------------------------------------------------------------------------
+# Submitted to several partitions? The first copy that starts cancels every
+# still-pending copy with the same job name, and takes an exclusive lock so a
+# second copy that starts at the same instant exits instead of writing to the
+# same zip files.
+# ---------------------------------------------------------------------------
+if [[ -n "${SLURM_JOB_ID:-}" ]]; then
+    pending=$(squeue -h -u "$USER" --name="$SLURM_JOB_NAME" --states=PENDING -o "%i" | grep -vx "$SLURM_JOB_ID" || true)
+    if [[ -n "$pending" ]]; then
+        echo "[$(date)] Job $SLURM_JOB_ID started on $SLURM_JOB_PARTITION; cancelling pending twins: $(echo $pending)"
+        scancel $pending || true
+    fi
+fi
+exec 9>"$DEST/.download.lock"
+if ! flock -n 9; then
+    echo "[$(date)] Another download job already holds $DEST/.download.lock; exiting"
+    exit 0
+fi
 
 # ---------------------------------------------------------------------------
 # Step 0: free space by removing unrelated navigation-trajectory datasets.
