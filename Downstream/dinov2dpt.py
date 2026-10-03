@@ -7,6 +7,7 @@ import sys, os
 import einops
 sys.path.append(os.path.abspath(os.path.join(os.getcwd(), os.pardir)))
 from dpt import DPTHead
+from src.student import load_student, student_intermediates
 import numpy as np
 import timm
 
@@ -121,7 +122,12 @@ class DinoV2DPTModel(pl.LightningModule):
             self.backbone = timm.create_model('eva02_base_patch14_448.mim_in22k_ft_in1k', pretrained=True, img_size = (self.img_size[0], self.img_size[1])) # pretrained_cfg_overlay={'input_size': (3,self.img_size[0],self.img_size[1])}
         elif self.args.feature_extractor == 'sam':
             self.backbone = timm.create_model('timm/samvit_base_patch16.sa1b', pretrained=True,  pretrained_cfg_overlay={'input_size': (3,self.img_size[0],self.img_size[1])})
+        elif self.args.feature_extractor == 'student':
+            # Frozen student ViT-S/14 loaded from a .pth (see src/student.py)
+            self.backbone = load_student(self.args.student_ckpt, arch=self.args.student_arch, img_size=self.img_size)
         self.patch_size = 14 if self.args.feature_extractor in ['dino', 'eva2-clip'] else 16
+        if self.args.feature_extractor == 'student':
+            self.patch_size = self.backbone.patch_embed.patch_size[0]
         self.patch_h = self.img_size[0] // self.patch_size 
         self.patch_w = self.img_size[1] // self.patch_size
         self.emb_dim = self.backbone.embed_dim
@@ -201,6 +207,8 @@ class DinoV2DPTModel(pl.LightningModule):
             elif self.args.feature_extractor == 'sam':
                 x = self.backbone.forward_intermediates(x, indices=self.args.dlayers, norm=False, intermediates_only=True) # Norm is False to avoide neck layer that reduces feature_dim to 256. Also output is in NCHW format
                 x = [einops.rearrange(f, 'b c h w -> b (h w) c') for f in x]
+            elif self.args.feature_extractor == 'student':
+                x = student_intermediates(self.backbone, x, self.args.dlayers)
             x = torch.cat(x, dim=2)
         if self.args.pca_ckpt:
             x = self.pca_transform(x)

@@ -11,6 +11,7 @@ import numpy as np
 import argparse
 import timm
 import einops
+from src.student import load_student, student_intermediates
 
 class cityscapes_sequence_data(torch.utils.data.Dataset):
     def __init__(self, root_dir, transform=None, subset='train', img_size=(448, 896)):
@@ -49,6 +50,20 @@ class dinov2(nn.Module):
                 x = torch.cat(x,dim=-1)
             else:
                 x = x[0]
+        return x
+
+class student(nn.Module):
+    def __init__(self, ckpt, arch, dlayers=[2,5,8,11], img_size=(448,896)):
+        super(student, self).__init__()
+        self.model = load_student(ckpt, arch=arch, img_size=img_size)
+        self.dlayers = dlayers
+
+    def forward(self, x):
+        x = student_intermediates(self.model, x, self.dlayers)
+        if len(self.dlayers) > 1:
+            x = torch.cat(x, dim=-1)
+        else:
+            x = x[0]
         return x
 
 class eva2_clip(nn.Module):
@@ -91,7 +106,9 @@ def parse_list(s, ):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--feature_extractor', type=str, default='dinov2', choices=['dinov2', 'eva2-clip', 'sam'])
+    parser.add_argument('--feature_extractor', type=str, default='dino', choices=['dino', 'dinov2', 'eva2-clip', 'sam', 'student'])
+    parser.add_argument('--student_ckpt', type=str, default=None, help='Path to the frozen student encoder .pth (used with --feature_extractor student)')
+    parser.add_argument('--student_arch', type=str, default='vit_small_patch14_dinov2', help='timm VisionTransformer name matching the student checkpoint')
     parser.add_argument('--batch_size', type=int, default=32)
     parser.add_argument('--n_components', type=int, default=1152)
     parser.add_argument('--dlayers', type=parse_list, default=[2,5,8,11])
@@ -110,8 +127,11 @@ if __name__ == '__main__':
     print(f'Number of batches: {n_batches}')
     device  = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f'Using device: {device}')
-    if args.feature_extractor == 'dino':
+    if args.feature_extractor in ('dino', 'dinov2'):
+        args.feature_extractor = 'dinov2'  # keep the checkpoint filename convention used in the README
         model  = dinov2(dlayers=args.dlayers).to(device).to(dtype)
+    elif args.feature_extractor == 'student':
+        model = student(args.student_ckpt, args.student_arch, dlayers=args.dlayers, img_size=args.img_size).to(device).to(dtype)
     elif args.feature_extractor == 'eva2-clip':
         model = eva2_clip(dlayers=args.dlayers, img_size=args.img_size).to(device).to(dtype)
     elif args.feature_extractor == 'sam':

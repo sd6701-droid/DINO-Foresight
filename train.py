@@ -34,8 +34,10 @@ parser.add_argument('--no_timestep_augm', action='store_true', help='If True, no
 parser.add_argument('--use_fc_bias', action='store_true', help='Use bias for the fc_in and fc_out layers.')
 parser.add_argument('--eval_modality', type=str, default=None, choices=[None, 'segm', 'depth', 'surface_normals'], help='Modality to be used for evaluation. If None, the input modality is used.')
 # Trasformer Parameters
-parser.add_argument('--feature_extractor', type=str, default='dino', choices=['dino', 'eva2-clip', 'sam'])
+parser.add_argument('--feature_extractor', type=str, default='dino', choices=['dino', 'eva2-clip', 'sam', 'student'])
 parser.add_argument('--dinov2_variant', type=str, default='vitb14_reg', choices=['vits14_reg','vitb14_reg'])
+parser.add_argument('--student_ckpt', type=str, default=None, help='Path to the frozen student encoder .pth (used with --feature_extractor student)')
+parser.add_argument('--student_arch', type=str, default='vit_small_patch14_dinov2', help='timm VisionTransformer name matching the student checkpoint')
 parser.add_argument('--d_layers', type=parse_list, default=[2,5,8,11])
 parser.add_argument('--hidden_dim', type=int, default=768)
 parser.add_argument('--heads', type=int, default=8)

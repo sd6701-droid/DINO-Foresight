@@ -69,6 +69,13 @@ For semantic/instance segmentation, we use the `leftImg8bit` and `gtFine` packag
 For more details regarding segmentation, depth and surface normals modalities preparation, refer to [Preparation of Labels for Library of Heads](preprocess_scripts/README.md).
 
 
+# Using a Custom Frozen Student Encoder
+Besides DINOv2, EVA2-CLIP and SAM, every script accepts `--feature_extractor student` to use your own frozen ViT loaded from a `.pth` file (see [src/student.py](src/student.py)):
+```bash
+--feature_extractor student --student_ckpt /path/to/student.pth --student_arch vit_small_patch14_dinov2
+```
+`--student_arch` is the timm `VisionTransformer` name matching your checkpoint (the default is a ViT-S/14). The checkpoint may be a raw state dict, a dict with a `state_dict`/`model`/`student`/`teacher` entry, or a pickled module; common `module.`/`backbone.` prefixes are stripped and the positional embedding is resampled to the training resolution. Loading fails loudly if any weight is missing. Images are normalized with ImageNet mean/std. The PCA (`pca.py`), the predictor (`train.py`) and the DPT heads (`Downstream/`) all have to be recomputed/retrained for the new encoder; with a ViT-S the concatenated feature dimension of 4 layers is 1536, so choose `--n_components` accordingly.
+
 # Precompute-PCA
 To precompute the PCA matrices different Vision Foundation Models (VFMs) on cityscapes `leftImg8bit` (2975 images for train) use the [pca.py](pca.py) script. For example in order to precompute pca with 1152 components for DinoV2 features extracted from layers 3,6,9,12 using image size 448x896 run the following command:
 ```bash

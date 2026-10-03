@@ -15,6 +15,7 @@ import numpy as np
 from torchmetrics import JaccardIndex
 from torchmetrics.aggregation import MeanMetric
 from src.attention_masked import MaskTransformer
+from src.student import load_student, student_intermediates
 import math
 from dpt import DPTHead
 import timm
@@ -129,7 +130,7 @@ class Dino_f(pl.LightningModule):
         self.loss_type = args.loss_type
         self.img_size  = args.img_size
         self.d_layers = args.d_layers
-        self.patch_size = 14 if self.args.feature_extractor in ['dino', 'eva2-clip'] else 16
+        self.patch_size = 14 if self.args.feature_extractor in ['dino', 'eva2-clip', 'student'] else 16
         self.d_num_layers = len(self.d_layers) if isinstance(self.d_layers, list) else self.d_layers
         if not self.args.crop_feats and not self.args.sliding_window_inference:
             self.shape = (self.sequence_length,self.img_size[0]//(self.patch_size), self.img_size[1]//(self.patch_size))
@@ -150,12 +151,20 @@ class Dino_f(pl.LightningModule):
             for param in self.sam.parameters():
                 param.requires_grad = False
                 self.sam.eval()
+        elif self.args.feature_extractor == 'student':
+            # Frozen student ViT-S/14 loaded from a .pth (see src/student.py)
+            self.student = load_student(args.student_ckpt, arch=args.student_arch, img_size=self.img_size)
+            # self.shape (token grid) was derived above assuming patch size 14
+            assert self.student.patch_embed.patch_size[0] == self.patch_size, \
+                f"student patch size {self.student.patch_embed.patch_size[0]} != {self.patch_size}"
         if self.args.feature_extractor == 'dino':
             self.feature_dim = self.dino_v2.embed_dim
         elif self.args.feature_extractor == 'eva2-clip':
             self.feature_dim = self.eva2clip.embed_dim
         elif self.args.feature_extractor == 'sam':
             self.feature_dim = self.sam.embed_dim
+        elif self.args.feature_extractor == 'student':
+            self.feature_dim = self.student.embed_dim
         self.embedding_dim = self.d_num_layers * self.feature_dim
         if self.args.pca_ckpt:
             self.pca_dict = torch.load(self.args.pca_ckpt, weights_only=False)
@@ -282,12 +291,14 @@ class Dino_f(pl.LightningModule):
             elif self.args.feature_extractor == 'sam':
                 x = self.sam.forward_intermediates(x, indices=self.d_layers, norm=False, intermediates_only=True) # Norm is False to avoide neck layer that reduces feature_dim to 256. Also output is in NCHW format
                 x = [einops.rearrange(f, 'b c h w -> b (h w) c') for f in x]
+            elif self.args.feature_extractor == 'student':
+                x = student_intermediates(self.student, x, self.d_layers)
             if self.d_num_layers > 1:
                 x = torch.cat(x,dim=-1)
             else:
                 x = x[0]
         return x
-            
+
     def get_mask_tokens(self, x, mode="arccos", mask_frames=1):
         B, sl, h, w, c = x.shape # x.shape [B,T,H,W,C]
         assert mask_frames <= sl

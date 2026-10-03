@@ -64,7 +64,7 @@ class CityscapesDataModule(pl.LightningDataModule):
         self.num_workers_val = args.num_workers_val
         self.modality = args.modality
         self.num_classes = args.num_classes
-        if args.feature_extractor in ['dino', 'sam']:
+        if args.feature_extractor in ['dino', 'sam', 'student']:
             self.mean = [0.485, 0.456, 0.406]
             self.std = [0.229, 0.224, 0.225]
         elif args.feature_extractor == 'eva2-clip':

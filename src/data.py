@@ -136,7 +136,7 @@ def process_trainmode(frames_path, img_size, subset, augmentations, sequence_len
         sequence_frames = [TF.crop(frame,i,j,h,w) for frame in sequence_frames]
     if augmentations["random_horizontal_flip"] == True and subset=="train":
         sequence_frames = [TF.hflip(frame) for frame in sequence_frames] if np.random.rand()>0.5 else sequence_frames
-    if feature_extractor in ['dino', 'sam']:
+    if feature_extractor in ['dino', 'sam', 'student']:
         mean = (0.485, 0.456, 0.406)
         std = (0.229, 0.224, 0.225)
     elif feature_extractor == 'eva2-clip':
@@ -156,7 +156,7 @@ def process_evalmode(frames_path, img_size, subset, sequence_length=5, eval_midt
         start_idx = 20 - step*sequence_length + num_frames_skip
     sequence_frames_path = frames_path[start_idx : start_idx + step*sequence_length : step]
     sequence_frames = [Image.open(frame).convert('RGB') for frame in sequence_frames_path]
-    if feature_extractor in ['dino', 'sam']:
+    if feature_extractor in ['dino', 'sam', 'student']:
         mean = (0.485, 0.456, 0.406)
         std = (0.229, 0.224, 0.225)
     elif feature_extractor == 'eva2-clip':
