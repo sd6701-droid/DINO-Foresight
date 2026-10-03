@@ -18,10 +18,35 @@
 #   chmod 600 ~/.local/share/cityscapesscripts/credentials.json
 # Then:  sbatch scripts/download_cityscapes.sbatch
 # Resubmitting is safe: downloads resume and extracted packages are skipped.
+# Before downloading it deletes the unrelated scand/huron/recon datasets from
+# ~/datasets (override with REMOVE_DATASETS="..." or disable with REMOVE_DATASETS="").
 
 set -euo pipefail
 
-DEST=${CITYSCAPES_DEST:-~/datasets/cityscapes}
+DATASETS_ROOT=${DATASETS_ROOT:-~/datasets}
+DEST=${CITYSCAPES_DEST:-$DATASETS_ROOT/cityscapes}
+
+# ---------------------------------------------------------------------------
+# Step 0: free space by removing unrelated navigation-trajectory datasets.
+# Only the exact directory names listed here are removed, and only if they
+# are direct children of $DATASETS_ROOT. Set REMOVE_DATASETS="" to skip.
+# ---------------------------------------------------------------------------
+REMOVE_DATASETS=${REMOVE_DATASETS-"scand huron recon"}
+for name in $REMOVE_DATASETS; do
+    target="$DATASETS_ROOT/$name"
+    if [[ -d "$target" && ! -L "$target" ]]; then
+        echo "[$(date)] Removing $target ($(du -sh "$target" 2>/dev/null | cut -f1))"
+        rm -rf -- "$target"
+    else
+        echo "[$(date)] Skip $target (not found)"
+    fi
+done
+echo "[$(date)] Free space in $DATASETS_ROOT:"
+df -h "$DATASETS_ROOT"
+
+# ---------------------------------------------------------------------------
+# Step 1: download, verify and extract Cityscapes.
+# ---------------------------------------------------------------------------
 mkdir -p "$DEST"
 cd "$DEST"
 
