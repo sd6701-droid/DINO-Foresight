@@ -1,5 +1,6 @@
 #!/bin/bash
-#SBATCH --partition=cpu_short
+# No --partition: this cluster's submit filter rejects an explicit CPU partition
+# ("CPU job setup is not valid") and routes CPU jobs (to cs) by itself.
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=8
@@ -20,9 +21,9 @@
 #   echo '{"username": "YOUR_EMAIL", "password": "YOUR_PASSWORD"}' > ~/.local/share/cityscapesscripts/credentials.json
 #   chmod 600 ~/.local/share/cityscapesscripts/credentials.json
 # Then:  mkdir -p /scratch/sd6701/DINO-Foresight/logs/cityscapes_download
-#        sbatch scripts/download_cityscapes.sbatch                 # cpu_short (header default)
-#        sbatch --partition=cs scripts/download_cityscapes.sbatch  # second copy on cs
-# Whichever copy starts first cancels the other pending copy automatically.
+#        sbatch scripts/download_cityscapes.sbatch
+# Submitting more than one copy is safe: whichever starts first cancels the
+# other pending copies automatically.
 #
 # Every stage is resumable, so cancelling and resubmitting is always safe:
 #   download  - csDownload -r continues a partial zip via HTTP Range requests and
@@ -32,7 +33,7 @@
 #   labels    - csCreateTrainIdLabelImgs is skipped once its marker exists
 # The job also requeues itself shortly before the partition time limit, so one
 # sbatch is enough even though the 324 GB package takes longer than one slot.
-# Check the limit with: sinfo -p cpu_short -o "%P %l"  and lower --time if needed.
+# Check the limit with: sinfo -p cs -o "%P %l"  and lower --time if needed.
 # Data goes to /scratch/$USER/datasets/cityscapes (override with DATASETS_ROOT or
 # CITYSCAPES_DEST). Before downloading it deletes the unrelated scand/huron/recon
 # datasets from DATASETS_ROOT (override with REMOVE_DATASETS="..." or disable with
