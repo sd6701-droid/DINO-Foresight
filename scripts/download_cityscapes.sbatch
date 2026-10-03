@@ -33,8 +33,10 @@
 # The job also requeues itself shortly before the partition time limit, so one
 # sbatch is enough even though the 324 GB package takes longer than one slot.
 # Check the limit with: sinfo -p cpu_short -o "%P %l"  and lower --time if needed.
-# Before downloading it deletes the unrelated scand/huron/recon datasets from
-# ~/datasets (override with REMOVE_DATASETS="..." or disable with REMOVE_DATASETS="").
+# Data goes to /scratch/$USER/datasets/cityscapes (override with DATASETS_ROOT or
+# CITYSCAPES_DEST). Before downloading it deletes the unrelated scand/huron/recon
+# datasets from DATASETS_ROOT (override with REMOVE_DATASETS="..." or disable with
+# REMOVE_DATASETS="").
 
 set -euo pipefail
 
@@ -51,9 +53,10 @@ if [[ -n "${SLURM_JOB_ID:-}" ]]; then
     trap requeue_self USR1
 fi
 
-DATASETS_ROOT=${DATASETS_ROOT:-~/datasets}
+DATASETS_ROOT=${DATASETS_ROOT:-/scratch/$USER/datasets}
 DEST=${CITYSCAPES_DEST:-$DATASETS_ROOT/cityscapes}
-mkdir -p "$DEST"
+mkdir -p "$DATASETS_ROOT" "$DEST"
+echo "[$(date)] host=$(hostname) partition=${SLURM_JOB_PARTITION:-none} datasets_root=$DATASETS_ROOT dest=$DEST"
 
 # ---------------------------------------------------------------------------
 # Submitted to several partitions? The first copy that starts cancels every
@@ -90,7 +93,7 @@ for name in $REMOVE_DATASETS; do
     fi
 done
 echo "[$(date)] Free space in $DATASETS_ROOT:"
-df -h "$DATASETS_ROOT"
+df -h "$DATASETS_ROOT" || true
 
 # ---------------------------------------------------------------------------
 # Step 1: download. One package at a time so each gets its own done-marker.
