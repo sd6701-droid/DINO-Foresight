@@ -1,14 +1,15 @@
 #!/bin/bash
-#SBATCH --job-name=cityscapes_dl
-#SBATCH --output=%x_%j.out
-#SBATCH --error=%x_%j.err
 #SBATCH --nodes=1
-#SBATCH --ntasks=1
-#SBATCH --cpus-per-task=4
-#SBATCH --mem=8G
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=32G
 #SBATCH --time=48:00:00
-# Add your CPU partition if required, e.g.:
-# #SBATCH --partition=cpu
+#SBATCH --account=torch_pr_230_tandon_priority
+#SBATCH --job-name=cityscapes_download
+#SBATCH --output=/scratch/sd6701/DINO-Foresight/logs/cityscapes_download/cityscapes_download_%j.log
+#SBATCH --error=/scratch/sd6701/DINO-Foresight/logs/cityscapes_download/cityscapes_download_%j.err
+#SBATCH --requeue                # restart after preemption/crash; the script is idempotent
+#SBATCH --open-mode=append       # requeued attempt appends to the SAME %j log
 #
 # Downloads and extracts the Cityscapes packages needed by DINO-Foresight.
 # One-time setup on the login node (so the job can log in unattended):
@@ -16,7 +17,8 @@
 #   mkdir -p ~/.local/share/cityscapesscripts
 #   echo '{"username": "YOUR_EMAIL", "password": "YOUR_PASSWORD"}' > ~/.local/share/cityscapesscripts/credentials.json
 #   chmod 600 ~/.local/share/cityscapesscripts/credentials.json
-# Then:  sbatch scripts/download_cityscapes.sbatch
+# Then:  mkdir -p /scratch/sd6701/DINO-Foresight/logs/cityscapes_download
+#        sbatch scripts/download_cityscapes.sbatch
 # Resubmitting is safe: downloads resume and extracted packages are skipped.
 # Before downloading it deletes the unrelated scand/huron/recon datasets from
 # ~/datasets (override with REMOVE_DATASETS="..." or disable with REMOVE_DATASETS="").
