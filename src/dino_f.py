@@ -130,7 +130,12 @@ class Dino_f(pl.LightningModule):
         self.loss_type = args.loss_type
         self.img_size  = args.img_size
         self.d_layers = args.d_layers
-        self.patch_size = 14 if self.args.feature_extractor in ['dino', 'eva2-clip', 'student'] else 16
+        if self.args.feature_extractor == 'student':
+            # Frozen student loaded from a .pth (see src/student.py); its patch size sets the token grid
+            self.student = load_student(args.student_ckpt, arch=args.student_arch, img_size=self.img_size)
+            self.patch_size = self.student.patch_embed.patch_size[0]
+        else:
+            self.patch_size = 14 if self.args.feature_extractor in ['dino', 'eva2-clip'] else 16
         self.d_num_layers = len(self.d_layers) if isinstance(self.d_layers, list) else self.d_layers
         if not self.args.crop_feats and not self.args.sliding_window_inference:
             self.shape = (self.sequence_length,self.img_size[0]//(self.patch_size), self.img_size[1]//(self.patch_size))
@@ -151,12 +156,6 @@ class Dino_f(pl.LightningModule):
             for param in self.sam.parameters():
                 param.requires_grad = False
                 self.sam.eval()
-        elif self.args.feature_extractor == 'student':
-            # Frozen student ViT-S/14 loaded from a .pth (see src/student.py)
-            self.student = load_student(args.student_ckpt, arch=args.student_arch, img_size=self.img_size)
-            # self.shape (token grid) was derived above assuming patch size 14
-            assert self.student.patch_embed.patch_size[0] == self.patch_size, \
-                f"student patch size {self.student.patch_embed.patch_size[0]} != {self.patch_size}"
         if self.args.feature_extractor == 'dino':
             self.feature_dim = self.dino_v2.embed_dim
         elif self.args.feature_extractor == 'eva2-clip':
