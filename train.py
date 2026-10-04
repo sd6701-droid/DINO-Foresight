@@ -1,7 +1,8 @@
-from src.data import CS_VideoData 
+from src.data import CS_VideoData
 from src.dino_f import Dino_f
 import pytorch_lightning as pl
-import torch 
+from pytorch_lightning.loggers import WandbLogger
+import torch
 import argparse
 import os
 import yaml
@@ -87,6 +88,10 @@ parser.add_argument('--use_val_to_train', action='store_true', default=False)
 parser.add_argument('--use_train_to_val', action='store_true', default=False)
 parser.add_argument('--evaluate_baseline', action='store_true', default=False)
 parser.add_argument('--eval_midterm', action='store_true', default=False)
+# Wandb
+parser.add_argument('--wandb_project', type=str, default='dino-foresight', help='Wandb project name')
+parser.add_argument('--wandb_run_name', type=str, default=None, help='Wandb run name (auto-generated if None)')
+parser.add_argument('--no_wandb', action='store_true', default=False, help='Disable wandb logging')
 
 args = parser.parse_args()
 
@@ -142,6 +147,19 @@ if args.dst_path is None:
     args.dst_path = os.getcwd()
 if args.max_epochs < args.eval_freq:
     args.eval_freq = 1
+
+# Wandb logger
+if not args.no_wandb:
+    wandb_logger = WandbLogger(
+        project=args.wandb_project,
+        name=args.wandb_run_name,
+        save_dir=args.dst_path,
+        log_model=False,
+        config=vars(args),
+    )
+else:
+    wandb_logger = None
+
 trainer = pl.Trainer(
     accelerator='gpu',
     strategy=(DDPStrategy(find_unused_parameters=False) if args.num_gpus > 1 else 'auto'),
@@ -153,7 +171,8 @@ trainer = pl.Trainer(
     precision=args.precision,
     log_every_n_steps=5,
     check_val_every_n_epoch=args.eval_freq,
-    accumulate_grad_batches=args.accum_iter)
+    accumulate_grad_batches=args.accum_iter,
+    logger=wandb_logger)
 
 if not args.eval_ckpt_only:
    if args.ckpt and not args.high_res_adapt:

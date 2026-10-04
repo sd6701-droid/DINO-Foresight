@@ -1,5 +1,6 @@
 import argparse
 from pytorch_lightning.strategies import DDPStrategy
+from pytorch_lightning.loggers import WandbLogger
 from data import CityscapesDataModule
 from dinov2dpt import DinoV2DPTModel
 import pytorch_lightning as pl
@@ -53,6 +54,10 @@ parser.add_argument("--accum_iter", type=int, default=1, help="Number of iterati
 parser.add_argument("--eval_ckpt_only", action='store_true', default=False, help="Evaluate only the checkpoint without training")
 parser.add_argument("--eval_last", action='store_true', default=False)
 parser.add_argument('--hflip_tta', action='store_true', default=False, help="Horizontal flip test time augmentation")
+# Wandb
+parser.add_argument('--wandb_project', type=str, default='dino-foresight', help='Wandb project name')
+parser.add_argument('--wandb_run_name', type=str, default=None, help='Wandb run name (auto-generated if None)')
+parser.add_argument('--no_wandb', action='store_true', default=False, help='Disable wandb logging')
 args = parser.parse_args()
 
 pl.seed_everything(args.seed, workers=True)
@@ -107,6 +112,19 @@ if args.dst_path is None:
     args.dst_path = os.getcwd()
 if args.max_epochs < args.eval_freq:
     args.eval_freq = 1
+
+# Wandb logger
+if not args.no_wandb:
+    wandb_logger = WandbLogger(
+        project=args.wandb_project,
+        name=args.wandb_run_name,
+        save_dir=args.dst_path,
+        log_model=False,
+        config=vars(args),
+    )
+else:
+    wandb_logger = None
+
 trainer = pl.Trainer(
     accelerator="gpu",
     strategy=(DDPStrategy(find_unused_parameters=False) if args.num_gpus > 1 else 'auto'),
@@ -118,7 +136,8 @@ trainer = pl.Trainer(
     precision=args.precision,
     log_every_n_steps=5,
     check_val_every_n_epoch=args.eval_freq,
-    accumulate_grad_batches=args.accum_iter)
+    accumulate_grad_batches=args.accum_iter,
+    logger=wandb_logger)
 
 if not args.eval_ckpt_only:
     model = DinoV2DPTModel(args)

@@ -33,10 +33,15 @@ nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
 source /scratch/sd6701/miniconda3/etc/profile.d/conda.sh
 conda activate salt
 
+# Wandb — set your API key here or run `wandb login` once on the cluster
+# export WANDB_API_KEY="your-key-here"
+
 # ── Run ──────────────────────────────────────────────────────────────────────
 cd "$REPO_DIR/Downstream"
 
 python train_dpt_head.py \
+    --wandb_project   dino-foresight \
+    --wandb_run_name  head-salt-vanilla-10ep \
     --data_path       "$DATA_DIR" \
     --feature_extractor student \
     --student_ckpt    "$CKPT" \
