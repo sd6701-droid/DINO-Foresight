@@ -203,7 +203,7 @@ class Dino_f(pl.LightningModule):
             # Load the head checkpoint
             if self.args.head_ckpt is not None:
                 state_dict = {}
-                for k, v in torch.load(self.args.head_ckpt)["state_dict"].items():
+                for k, v in torch.load(self.args.head_ckpt, weights_only=False)["state_dict"].items():
                     state_dict[k.replace("head.","")] = v
                 self.head.load_state_dict(state_dict)
                 self.head.eval()
