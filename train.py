@@ -138,7 +138,7 @@ print(f'Effective batch size:{args.effective_batch_size} lr_base={args.lr_base} 
 if not args.high_res_adapt:
     Dino_foresight = Dino_f(args)
 else:
-    Dino_foresight = Dino_f.load_from_checkpoint(args.ckpt,args=args,strict=False, map_location="cpu")
+    Dino_foresight = Dino_f.load_from_checkpoint(args.ckpt,args=args,strict=False, map_location="cpu", weights_only=False)
 
 callbacks = []
 checkpoint_callback = pl.callbacks.ModelCheckpoint(monitor='val/loss', mode='min', save_top_k=1, save_last=True)
@@ -196,7 +196,7 @@ if args.evaluate:
         checkpoint_path = checkpoint_callback.last_model_path
 
     print(f'checkpoint_path = {checkpoint_path}')
-    Dino_foresight = Dino_f.load_from_checkpoint(checkpoint_path,args=args,strict=False, map_location="cpu")
+    Dino_foresight = Dino_f.load_from_checkpoint(checkpoint_path,args=args,strict=False, map_location="cpu", weights_only=False)
     print('-----------Dino_foresight.eval_mode = ',Dino_foresight.args.eval_mode)
     Dino_foresight.to(args.device)
     Dino_foresight.eval()

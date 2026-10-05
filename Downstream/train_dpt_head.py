@@ -153,7 +153,7 @@ else:
     checkpoint_path = checkpoint_callback.last_model_path
 
 print(f'checkpoint_path = {checkpoint_path}')
-model = DinoV2DPTModel.load_from_checkpoint(checkpoint_path, args=args,strict=False)
+model = DinoV2DPTModel.load_from_checkpoint(checkpoint_path, args=args, strict=False, weights_only=False)
 model.eval()
 val_data_loader = data.val_dataloader()
 out_metrics = trainer.validate(model=model, dataloaders=val_data_loader)
