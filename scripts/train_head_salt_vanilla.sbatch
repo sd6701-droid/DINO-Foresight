@@ -31,7 +31,10 @@ nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
 
 # ── Environment ──────────────────────────────────────────────────────────────
 source /scratch/sd6701/miniconda3/etc/profile.d/conda.sh
+# activate.d/env_vars.sh expands $LD_LIBRARY_PATH, which is fatal under set -u
+set +u
 conda activate salt
+set -u
 
 # Wandb — set your API key here or run `wandb login` once on the cluster
 # export WANDB_API_KEY="your-key-here"

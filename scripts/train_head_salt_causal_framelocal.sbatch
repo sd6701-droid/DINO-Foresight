@@ -25,7 +25,10 @@ echo "[$(date)] host=$(hostname) gpus=$SLURM_GPUS_ON_NODE job=$SLURM_JOB_ID"
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
 
 source /scratch/sd6701/miniconda3/etc/profile.d/conda.sh
+# activate.d/env_vars.sh expands $LD_LIBRARY_PATH, which is fatal under set -u
+set +u
 conda activate salt
+set -u
 
 cd "$REPO_DIR/Downstream"
 
