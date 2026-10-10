@@ -38,7 +38,7 @@ parser.add_argument('--eval_modality', type=str, default=None, choices=[None, 's
 parser.add_argument('--feature_extractor', type=str, default='dino', choices=['dino', 'eva2-clip', 'sam', 'student'])
 parser.add_argument('--dinov2_variant', type=str, default='vitb14_reg', choices=['vits14_reg','vitb14_reg'])
 parser.add_argument('--student_ckpt', type=str, default=None, help='Path to the frozen student encoder .pth (used with --feature_extractor student)')
-parser.add_argument('--student_arch', type=str, default='vit_small_patch14_dinov2', help='timm VisionTransformer name matching the student checkpoint')
+parser.add_argument('--student_arch', type=str, default='vit_small_patch14_dinov2', help='timm VisionTransformer name matching the student checkpoint; optional constructor overrides as name:k=v,k=v (e.g. vit_small_patch14_dinov2:init_values=None)')
 parser.add_argument('--d_layers', type=parse_list, default=[2,5,8,11])
 parser.add_argument('--hidden_dim', type=int, default=768)
 parser.add_argument('--heads', type=int, default=8)

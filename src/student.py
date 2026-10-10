@@ -23,7 +23,13 @@ with ``frame_encoder.*``, ``temporal_encoder.*``, ...):
 ``--student_ckpt tdv-small.pth::frame_encoder`` keeps only the keys under
 ``frame_encoder.`` and strips that prefix. Chunked block names of the DINOv2
 ``BlockChunk`` form ``blocks.<chunk>.<idx>.*`` are flattened to ``blocks.<idx>.*``.
+
+A timm ``--student_arch`` may carry constructor overrides after a colon,
+``name:key=value[,key=value...]`` (values parsed as Python literals), e.g.
+``vit_small_patch14_dinov2:init_values=None`` for a patch-14 DINOv2 ViT-S
+trained without LayerScale (the TDV frame encoder).
 """
+import ast
 import re
 
 import torch
@@ -108,6 +114,25 @@ def _flatten_chunked_blocks(state_dict):
     return out
 
 
+def _parse_arch(arch):
+    """Split ``name[:k=v,k=v...]`` into the timm model name and constructor kwargs.
+
+    Values go through ``ast.literal_eval`` (``None``, numbers, bools, tuples), falling
+    back to the raw string. ``vit_small_patch14_dinov2:init_values=None`` -> no LayerScale.
+    """
+    name, _, spec = arch.partition(':')
+    overrides = {}
+    for item in filter(None, spec.split(',')):
+        k, sep, v = item.partition('=')
+        if not sep or not k.strip():
+            raise ValueError(f"Bad --student_arch override '{item}' in '{arch}'; expected key=value")
+        try:
+            overrides[k.strip()] = ast.literal_eval(v.strip())
+        except (ValueError, SyntaxError):
+            overrides[k.strip()] = v.strip()
+    return name.strip(), overrides
+
+
 def load_student(ckpt_path, arch=DEFAULT_STUDENT_ARCH, img_size=(448, 896), verbose=True):
     """Build a frozen timm ViT and load the student weights from ``ckpt_path``.
 
@@ -130,8 +155,9 @@ def load_student(ckpt_path, arch=DEFAULT_STUDENT_ARCH, img_size=(448, 896), verb
         # so every checkpoint key should map 1:1 to a model parameter.
         missing, unexpected = model.load_state_dict(state_dict, strict=False)
     else:
-        model = timm.create_model(arch, pretrained=False, img_size=tuple(img_size),
-                                  dynamic_img_size=True, num_classes=0)
+        name, overrides = _parse_arch(arch)
+        model = timm.create_model(name, pretrained=False, img_size=tuple(img_size),
+                                  dynamic_img_size=True, num_classes=0, **overrides)
         # Resamples pos_embed to the model grid and adapts key names of common ViT formats.
         state_dict = checkpoint_filter_fn(state_dict, model)
         missing, unexpected = model.load_state_dict(state_dict, strict=False)

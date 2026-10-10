@@ -19,9 +19,10 @@ CKPT=/scratch/sd6701/tdv/pretrained/checkpoints/tdv-small.pth::frame_encoder
 # Same ENC_TAG as train_head_tdv_small.sbatch (used for the wandb run name).
 ENC_TAG=tdv-small
 # timm ViT name matching tdv-small.pth. TDV paper (arXiv 2606.15956, Table C.2): ViT-S, patch 14, DINOv2-style
-# chunked blocks => vit_small_patch14_dinov2 (LayerScale, no registers). Wrong name fails fast in load_student.
+# chunked blocks, NO LayerScale (load test: only ls1/ls2.gamma missing) => dinov2 preset with init_values=None.
+# Wrong name fails fast in load_student with the missing keys.
 # Must be identical in head and predictor scripts.
-STUDENT_ARCH=vit_small_patch14_dinov2
+STUDENT_ARCH=vit_small_patch14_dinov2:init_values=None
 LOG_DIR=/scratch/sd6701/DINO-Foresight/logs/pred_tdv_small
 DST_DIR=/scratch/sd6701/DINO-Foresight/results/predictor_tdv_small
 HEAD_ROOT=/scratch/sd6701/DINO-Foresight/results/head_tdv_small
