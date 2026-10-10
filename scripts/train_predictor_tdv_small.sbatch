@@ -111,6 +111,11 @@ fi
 
 cd "$REPO_DIR"
 
+# Patch-14 encoder => 32x64 = 2048 tokens/frame (vs 28x56 = 1568 for patch 16): full attention over a
+# 5-frame clip needs ~1.7x the memory of the SALT runs and batch 2 OOMs on 80GB (job 19545291).
+# batch 1 + accum 2 keeps effective batch 2, lr and max_steps identical to the other encoders.
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+
 python train.py \
     --wandb_project    dino-foresight \
     --wandb_run_name   predictor-${ENC_TAG}-10ep \
@@ -122,7 +127,8 @@ python train.py \
     --d_layers         2,5,8,11 \
     --sequence_length  5 \
     --step             1 \
-    --batch_size       2 \
+    --batch_size       1 \
+    --accum_iter       2 \
     --num_gpus         1 \
     --max_epochs       10 \
     --eval_freq        1 \
