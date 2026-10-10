@@ -15,7 +15,7 @@ set -euo pipefail
 
 REPO_DIR=/scratch/sd6701/DINO-Foresight
 DATA_DIR=/scratch/sd6701/datasets/cityscapes/leftImg8bit_sequence
-CKPT=/scratch/sd6701/salt/p-salt/results/student_ssv2_50ep/causal_proposed/checkpoints/edbdd270/last/checkpoint.pth
+CKPT=/scratch/sd6701/vjepa2_runs/vits.ssv2.256px.16f.1000ep/pretrain-256px-16f-1000ep_20260927-161429/best.pt::target_encoder
 LOG_DIR=/scratch/sd6701/DINO-Foresight/logs/pred_causal_proposed
 DST_DIR=/scratch/sd6701/DINO-Foresight/results/predictor_causal_proposed
 

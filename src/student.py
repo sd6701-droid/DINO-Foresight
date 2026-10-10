@@ -11,6 +11,11 @@ a ViT-S/14 with LayerScale and no register tokens.
 
 ``--student_arch salt_vit_small_rope`` (see src/salt_vit.py) instead loads a
 SALT / V-JEPA style video ViT-S/16 and runs it per-frame.
+
+A V-JEPA training snapshot holds several models (``encoder``, ``predictor``,
+``target_encoder``); append ``::<key>`` to the checkpoint path to choose one,
+e.g. ``--student_ckpt best.pt::target_encoder``. Without it the usual key
+scan applies, which would pick ``encoder``.
 """
 import torch
 import torch.nn as nn
@@ -23,23 +28,36 @@ _STATE_DICT_KEYS = ('state_dict', 'model', 'student', 'encoder', 'teacher', 'mod
 _STRIP_PREFIXES = ('module.', 'backbone.', 'student.', 'encoder.', 'model.')
 
 
-def _unwrap_state_dict(ckpt):
-    """Accept a raw state dict, a Lightning/DINO style wrapper dict, or a pickled nn.Module."""
+def _unwrap_state_dict(ckpt, key=None):
+    """Accept a raw state dict, a Lightning/DINO style wrapper dict, or a pickled nn.Module.
+
+    ``key`` names the sub-dict to load explicitly (e.g. ``target_encoder`` of a
+    V-JEPA training snapshot, which also holds ``encoder`` and ``predictor``).
+    Without it the first match in _STATE_DICT_KEYS wins, as before.
+    Returns ``(state_dict, selected)`` where ``selected`` is the sub-dict key used
+    (None for a raw state dict) so the caller can report it.
+    """
     if isinstance(ckpt, nn.Module):
-        return ckpt.state_dict()
+        return ckpt.state_dict(), None
     if not isinstance(ckpt, dict):
         raise TypeError(f"Unsupported checkpoint type {type(ckpt)}; expected a state dict or nn.Module")
-    for key in _STATE_DICT_KEYS:
-        if key in ckpt and isinstance(ckpt[key], dict):
-            ckpt = ckpt[key]
-            break
+    selected = None
+    if key is not None:
+        if key not in ckpt or not isinstance(ckpt[key], dict):
+            raise KeyError(f"Checkpoint has no state-dict entry '{key}'; top-level keys: {list(ckpt.keys())}")
+        ckpt, selected = ckpt[key], key
+    else:
+        for k in _STATE_DICT_KEYS:
+            if k in ckpt and isinstance(ckpt[k], dict):
+                ckpt, selected = ckpt[k], k
+                break
     state_dict = {}
     for k, v in ckpt.items():
         for prefix in _STRIP_PREFIXES:
             if k.startswith(prefix):
                 k = k[len(prefix):]
         state_dict[k] = v
-    return state_dict
+    return state_dict, selected
 
 
 def load_student(ckpt_path, arch=DEFAULT_STUDENT_ARCH, img_size=(448, 896), verbose=True):
@@ -48,11 +66,16 @@ def load_student(ckpt_path, arch=DEFAULT_STUDENT_ARCH, img_size=(448, 896), verb
     ``dynamic_img_size=True`` lets the same weights run at 224x448 and 448x896
     (positional embeddings are interpolated on the fly), which the two-stage
     training relies on.
+
+    ``ckpt_path`` may be ``path::key`` to pick one sub-dict of a multi-model
+    snapshot, e.g. ``best.pt::target_encoder`` for the EMA target encoder of a
+    V-JEPA run (whose ``encoder`` would otherwise be picked up first).
     """
     if ckpt_path is None:
         raise ValueError("--feature_extractor student requires --student_ckpt /path/to/student.pth")
-    ckpt = torch.load(ckpt_path, map_location='cpu', weights_only=False)
-    state_dict = _unwrap_state_dict(ckpt)
+    path, _, key = ckpt_path.partition('::')
+    ckpt = torch.load(path, map_location='cpu', weights_only=False)
+    state_dict, selected = _unwrap_state_dict(ckpt, key or None)
     if arch in SALT_ARCHS:
         model = build_salt_vit(arch)
         # RoPE has no stored parameters (omega is a non-persistent buffer),
@@ -73,7 +96,7 @@ def load_student(ckpt_path, arch=DEFAULT_STUDENT_ARCH, img_size=(448, 896), verb
     if verbose and unexpected:
         print(f"[student] Ignoring unexpected keys in {ckpt_path}: {unexpected}")
     if verbose:
-        print(f"[student] Loaded {arch} from {ckpt_path} (embed_dim={model.embed_dim}, "
+        print(f"[student] Loaded {arch} from {ckpt_path} (sub-dict={selected}, embed_dim={model.embed_dim}, "
               f"patch_size={model.patch_embed.patch_size[0]}, depth={len(model.blocks)})")
     model.eval()
     for p in model.parameters():
