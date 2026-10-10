@@ -108,7 +108,7 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--feature_extractor', type=str, default='dino', choices=['dino', 'dinov2', 'eva2-clip', 'sam', 'student'])
     parser.add_argument('--student_ckpt', type=str, default=None, help='Path to the frozen student encoder .pth (used with --feature_extractor student)')
-    parser.add_argument('--student_arch', type=str, default='vit_small_patch14_dinov2', help='timm VisionTransformer name matching the student checkpoint; optional constructor overrides as name:k=v,k=v (e.g. vit_small_patch14_dinov2:init_values=None)')
+    parser.add_argument('--student_arch', type=str, default='vit_small_patch14_dinov2', help='timm VisionTransformer name matching the student checkpoint; optional constructor overrides as name:k=v,k=v (e.g. vit_small_patch16_224:patch_size=14)')
     parser.add_argument('--batch_size', type=int, default=32)
     parser.add_argument('--n_components', type=int, default=1152)
     parser.add_argument('--dlayers', type=parse_list, default=[2,5,8,11])

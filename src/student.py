@@ -26,8 +26,10 @@ with ``frame_encoder.*``, ``temporal_encoder.*``, ...):
 
 A timm ``--student_arch`` may carry constructor overrides after a colon,
 ``name:key=value[,key=value...]`` (values parsed as Python literals), e.g.
-``vit_small_patch14_dinov2:init_values=None`` for a patch-14 DINOv2 ViT-S
-trained without LayerScale (the TDV frame encoder).
+``vit_small_patch16_224:patch_size=14`` for a patch-14 ViT-S *without*
+LayerScale (the TDV frame encoder). Note ``timm.create_model`` drops kwargs
+whose value is ``None``, so a preset default cannot be cleared with ``k=None``;
+start from a preset that lacks the feature instead.
 """
 import ast
 import re
@@ -117,8 +119,9 @@ def _flatten_chunked_blocks(state_dict):
 def _parse_arch(arch):
     """Split ``name[:k=v,k=v...]`` into the timm model name and constructor kwargs.
 
-    Values go through ``ast.literal_eval`` (``None``, numbers, bools, tuples), falling
-    back to the raw string. ``vit_small_patch14_dinov2:init_values=None`` -> no LayerScale.
+    Values go through ``ast.literal_eval`` (numbers, bools, tuples), falling back to the
+    raw string. ``vit_small_patch16_224:patch_size=14`` -> patch-14 ViT-S, no LayerScale.
+    ``None`` values are discarded by ``timm.create_model`` and therefore cannot override.
     """
     name, _, spec = arch.partition(':')
     overrides = {}
