@@ -7,20 +7,20 @@
 #SBATCH --mem=120G
 #SBATCH --time=04:00:00
 #SBATCH --account=torch_pr_230_tandon_priority
-#SBATCH --job-name=head_causal_proposed
-#SBATCH --output=/scratch/sd6701/DINO-Foresight/logs/head_causal_proposed/head_causal_proposed_%j.log
-#SBATCH --error=/scratch/sd6701/DINO-Foresight/logs/head_causal_proposed/head_causal_proposed_%j.err
+#SBATCH --job-name=head_tbidir
+#SBATCH --output=/scratch/sd6701/DINO-Foresight/logs/head_tbidir/head_tbidir_%j.log
+#SBATCH --error=/scratch/sd6701/DINO-Foresight/logs/head_tbidir/head_tbidir_%j.err
 
 set -euo pipefail
 
 REPO_DIR=/scratch/sd6701/DINO-Foresight
 DATA_DIR=/scratch/sd6701/datasets/cityscapes
-CKPT=/scratch/sd6701/vjepa2_runs/vits.ssv2.256px.16f.1000ep/pretrain-256px-16f-1000ep_20260927-161429/best.pt::target_encoder
+CKPT=/scratch/sd6701/salt/p-salt/results/student_ssv2_50ep/framelocal_T_bidir_decbidir/checkpoints/ece40e2a/last/checkpoint.pth
 # One short tag per encoder checkpoint. It names the head's output dir and the wandb run,
 # and the predictor sbatch must use the same CKPT + ENC_TAG to find this head.
-ENC_TAG=vjepa2-target
-LOG_DIR=/scratch/sd6701/DINO-Foresight/logs/head_causal_proposed
-DST_DIR=/scratch/sd6701/DINO-Foresight/results/head_causal_proposed/$ENC_TAG
+ENC_TAG=salt-framelocal-tbidir
+LOG_DIR=/scratch/sd6701/DINO-Foresight/logs/head_tbidir
+DST_DIR=/scratch/sd6701/DINO-Foresight/results/head_tbidir/$ENC_TAG
 
 mkdir -p "$LOG_DIR" "$DST_DIR"
 
@@ -64,6 +64,15 @@ python train_dpt_head.py \
     --dst_path        "$DST_DIR" \
     --seed            123
 
-echo "Head checkpoint(s) under: $DST_DIR"
-find "$DST_DIR" -name "last.ckpt" -path "*/checkpoints/*"
+# Record exactly which head this Stage 1 run produced (newest last.ckpt under DST_DIR).
+# Stage 2 (train_predictor_tbidir.sbatch) reads this pointer and cross-checks it.
+HEAD_OUT=$(find "$DST_DIR" -name "last.ckpt" -path "*/checkpoints/*" -printf '%T@ %p\n' | sort -n | tail -1 | cut -d' ' -f2-)
+if [ -z "$HEAD_OUT" ]; then
+    echo "ERROR: training finished but no last.ckpt found under $DST_DIR" >&2
+    exit 1
+fi
+printf '%s\n' "$HEAD_OUT" > "$DST_DIR/HEAD_CKPT.txt"
+printf '%s\n' "$SLURM_JOB_ID" > "$DST_DIR/HEAD_JOB.txt"
+echo "Stage 1 head checkpoint: $HEAD_OUT"
+echo "Pointer written: $DST_DIR/HEAD_CKPT.txt (produced by job $SLURM_JOB_ID -> $DST_DIR/HEAD_JOB.txt)"
 echo "[$(date)] Done"

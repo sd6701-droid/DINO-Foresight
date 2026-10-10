@@ -7,20 +7,20 @@
 #SBATCH --mem=120G
 #SBATCH --time=12:00:00
 #SBATCH --account=torch_pr_230_tandon_priority
-#SBATCH --job-name=pred_causal_framelocal
-#SBATCH --output=/scratch/sd6701/DINO-Foresight/logs/pred_causal_framelocal/pred_causal_framelocal_%j.log
-#SBATCH --error=/scratch/sd6701/DINO-Foresight/logs/pred_causal_framelocal/pred_causal_framelocal_%j.err
+#SBATCH --job-name=pred_tbidir
+#SBATCH --output=/scratch/sd6701/DINO-Foresight/logs/pred_tbidir/pred_tbidir_%j.log
+#SBATCH --error=/scratch/sd6701/DINO-Foresight/logs/pred_tbidir/pred_tbidir_%j.err
 
 set -euo pipefail
 
 REPO_DIR=/scratch/sd6701/DINO-Foresight
 DATA_DIR=/scratch/sd6701/datasets/cityscapes/leftImg8bit_sequence
 CKPT=/scratch/sd6701/salt/p-salt/results/student_ssv2_50ep/framelocal_T_bidir_decbidir/checkpoints/ece40e2a/last/checkpoint.pth
-# Same ENC_TAG as train_head_salt_causal_framelocal.sbatch (used for the wandb run name).
+# Same ENC_TAG as train_head_tbidir.sbatch (used for the wandb run name).
 ENC_TAG=salt-framelocal-tbidir
-LOG_DIR=/scratch/sd6701/DINO-Foresight/logs/pred_causal_framelocal
-DST_DIR=/scratch/sd6701/DINO-Foresight/results/predictor_causal_framelocal
-HEAD_ROOT=/scratch/sd6701/DINO-Foresight/results/head_causal_framelocal
+LOG_DIR=/scratch/sd6701/DINO-Foresight/logs/pred_tbidir
+DST_DIR=/scratch/sd6701/DINO-Foresight/results/predictor_tbidir
+HEAD_ROOT=/scratch/sd6701/DINO-Foresight/results/head_tbidir
 
 mkdir -p "$LOG_DIR" "$DST_DIR"
 
@@ -39,7 +39,7 @@ set -u
 # first) take the first whose saved hparams `student_ckpt` equals this predictor's CKPT, so a head
 # trained on a different encoder can never be picked silently.
 if [ ! -d "$HEAD_ROOT" ]; then
-    echo "ERROR: $HEAD_ROOT does not exist. Run train_head_salt_causal_framelocal.sbatch first." >&2
+    echo "ERROR: $HEAD_ROOT does not exist. Run train_head_tbidir.sbatch first." >&2
     exit 1
 fi
 HEAD_CANDS=()
@@ -69,6 +69,39 @@ if [ -z "$HEAD_CKPT" ]; then
     exit 1
 fi
 echo "Using head checkpoint (encoder verified): $HEAD_CKPT"
+
+# Cross-check against the pointer Stage 1 wrote. A mismatch means a head other than the
+# latest Stage 1 run was selected (or Stage 1 was re-run on a different encoder).
+POINTER="$HEAD_ROOT/$ENC_TAG/HEAD_CKPT.txt"
+if [ -f "$POINTER" ]; then
+    EXPECTED=$(cat "$POINTER")
+    if [ "$EXPECTED" != "$HEAD_CKPT" ]; then
+        echo "ERROR: Stage 1 pointer says $EXPECTED but encoder-verified selection is $HEAD_CKPT" >&2
+        exit 1
+    fi
+    echo "Pointer check OK: matches $POINTER"
+else
+    echo "WARNING: no Stage 1 pointer at $POINTER (head trained before pointer files existed); relying on hparams check only"
+fi
+
+# When launched via run_tbidir_pipeline.sh, EXPECT_HEAD_JOB is the Slurm job id of the Stage 1 run
+# this job depends on. Require that the selected head was produced by that job, i.e. freshly
+# generated in this pipeline and not a leftover from an earlier run.
+if [ -n "${EXPECT_HEAD_JOB:-}" ]; then
+    JOBFILE="$HEAD_ROOT/$ENC_TAG/HEAD_JOB.txt"
+    if [ ! -f "$JOBFILE" ]; then
+        echo "ERROR: EXPECT_HEAD_JOB=$EXPECT_HEAD_JOB but $JOBFILE is missing; Stage 1 did not record its job id" >&2
+        exit 1
+    fi
+    HEAD_JOB=$(cat "$JOBFILE")
+    if [ "$HEAD_JOB" != "$EXPECT_HEAD_JOB" ]; then
+        echo "ERROR: head was produced by Stage 1 job $HEAD_JOB, but this pipeline expects job $EXPECT_HEAD_JOB" >&2
+        exit 1
+    fi
+    echo "Fresh-head check OK: head produced by Stage 1 job $HEAD_JOB (this pipeline)"
+else
+    echo "NOTE: EXPECT_HEAD_JOB not set (standalone run); fresh-head job check skipped"
+fi
 
 cd "$REPO_DIR"
 
