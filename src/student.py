@@ -16,7 +16,16 @@ A V-JEPA training snapshot holds several models (``encoder``, ``predictor``,
 ``target_encoder``); append ``::<key>`` to the checkpoint path to choose one,
 e.g. ``--student_ckpt best.pt::target_encoder``. Without it the usual key
 scan applies, which would pick ``encoder``.
+
+``::<key>`` also accepts a *module prefix* inside a single state dict, for
+checkpoints that store several modules side by side (e.g. a Lightning model
+with ``frame_encoder.*``, ``temporal_encoder.*``, ...):
+``--student_ckpt tdv-small.pth::frame_encoder`` keeps only the keys under
+``frame_encoder.`` and strips that prefix. Chunked block names of the DINOv2
+``BlockChunk`` form ``blocks.<chunk>.<idx>.*`` are flattened to ``blocks.<idx>.*``.
 """
+import re
+
 import torch
 import torch.nn as nn
 import timm
@@ -42,9 +51,7 @@ def _unwrap_state_dict(ckpt, key=None):
     if not isinstance(ckpt, dict):
         raise TypeError(f"Unsupported checkpoint type {type(ckpt)}; expected a state dict or nn.Module")
     selected = None
-    if key is not None:
-        if key not in ckpt or not isinstance(ckpt[key], dict):
-            raise KeyError(f"Checkpoint has no state-dict entry '{key}'; top-level keys: {list(ckpt.keys())}")
+    if key is not None and key in ckpt and isinstance(ckpt[key], dict):
         ckpt, selected = ckpt[key], key
     else:
         for k in _STATE_DICT_KEYS:
@@ -57,7 +64,48 @@ def _unwrap_state_dict(ckpt, key=None):
             if k.startswith(prefix):
                 k = k[len(prefix):]
         state_dict[k] = v
-    return state_dict, selected
+    if key is not None and selected != key:
+        # Not a top-level sub-dict: treat ``key`` as a module prefix inside the state dict
+        # (e.g. ``frame_encoder`` of a Lightning model that also stores other modules).
+        # Applied after the generic wrapper prefixes (``model.``, ``module.`` ...) are stripped.
+        prefix = key.rstrip('.') + '.'
+        sub = {k[len(prefix):]: v for k, v in state_dict.items() if k.startswith(prefix)}
+        if not sub:
+            raise KeyError(
+                f"Checkpoint has neither a state-dict entry nor a module prefix '{key}'; "
+                f"top-level keys: {list(ckpt.keys())[:10]}; "
+                f"module prefixes: {sorted({k.split('.')[0] for k in state_dict})}")
+        state_dict, selected = sub, (f"{selected}/{key}" if selected else key)
+    return _flatten_chunked_blocks(state_dict), selected
+
+
+_CHUNKED_BLOCK_RE = re.compile(r'^blocks\.(\d+)\.(\d+)\.(.+)$')
+
+
+def _flatten_chunked_blocks(state_dict):
+    """Map ``blocks.<chunk>.<idx>.*`` to ``blocks.<n>.*`` so chunked ViTs load into a flat timm ViT.
+
+    DINOv2's ``BlockChunk`` keeps the GLOBAL block index as ``<idx>`` (chunk 1 holds
+    ``blocks.1.3``, ``blocks.1.4``, ...), so when the inner indices are all distinct they are
+    used directly. Otherwise (plain nested lists restarting at 0 per chunk) blocks are numbered
+    in (chunk, idx) order. Keys that are not of this form are returned unchanged.
+    """
+    matches = {k: m for k in state_dict for m in [_CHUNKED_BLOCK_RE.match(k)] if m}
+    if not matches:
+        return state_dict
+    pairs = sorted({(int(m.group(1)), int(m.group(2))) for m in matches.values()})
+    inner = [i for _, i in pairs]
+    if len(set(inner)) == len(inner):
+        index = {pair: pair[1] for pair in pairs}
+    else:
+        index = {pair: n for n, pair in enumerate(pairs)}
+    out = {}
+    for k, v in state_dict.items():
+        m = matches.get(k)
+        if m is not None:
+            k = f"blocks.{index[(int(m.group(1)), int(m.group(2)))]}.{m.group(3)}"
+        out[k] = v
+    return out
 
 
 def load_student(ckpt_path, arch=DEFAULT_STUDENT_ARCH, img_size=(448, 896), verbose=True):
