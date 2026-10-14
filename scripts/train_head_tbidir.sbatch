@@ -15,10 +15,10 @@ set -euo pipefail
 
 REPO_DIR=/scratch/sd6701/DINO-Foresight
 DATA_DIR=/scratch/sd6701/datasets/cityscapes
-CKPT=/scratch/sd6701/salt/p-salt/results/student_ssv2_50ep/framelocal_T_bidir_decbidir/checkpoints/ece40e2a/last/checkpoint.pth
+CKPT=/scratch/sd6701/salt/p-salt/results/student_ssv2_50ep/framelocal_T_bidir_decbidir_shift124/checkpoints/181c34f2/last/checkpoint.pth
 # One short tag per encoder checkpoint. It names the head's output dir and the wandb run,
 # and the predictor sbatch must use the same CKPT + ENC_TAG to find this head.
-ENC_TAG=salt-framelocal-tbidir
+ENC_TAG=salt-framelocal-tbidir-shift124
 LOG_DIR=/scratch/sd6701/DINO-Foresight/logs/head_tbidir
 DST_DIR=/scratch/sd6701/DINO-Foresight/results/head_tbidir/$ENC_TAG
 

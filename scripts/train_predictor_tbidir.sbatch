@@ -15,9 +15,9 @@ set -euo pipefail
 
 REPO_DIR=/scratch/sd6701/DINO-Foresight
 DATA_DIR=/scratch/sd6701/datasets/cityscapes/leftImg8bit_sequence
-CKPT=/scratch/sd6701/salt/p-salt/results/student_ssv2_50ep/framelocal_T_bidir_decbidir/checkpoints/ece40e2a/last/checkpoint.pth
+CKPT=/scratch/sd6701/salt/p-salt/results/student_ssv2_50ep/framelocal_T_bidir_decbidir_shift124/checkpoints/181c34f2/last/checkpoint.pth
 # Same ENC_TAG as train_head_tbidir.sbatch (used for the wandb run name).
-ENC_TAG=salt-framelocal-tbidir
+ENC_TAG=salt-framelocal-tbidir-shift124
 LOG_DIR=/scratch/sd6701/DINO-Foresight/logs/pred_tbidir
 DST_DIR=/scratch/sd6701/DINO-Foresight/results/predictor_tbidir
 HEAD_ROOT=/scratch/sd6701/DINO-Foresight/results/head_tbidir
